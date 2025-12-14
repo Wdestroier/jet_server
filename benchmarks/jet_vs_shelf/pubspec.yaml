@@ -1,0 +1,16 @@
+name: jet_vs_shelf_bench
+description: Benchmark comparing jet_server vs shelf on Linux/WSL.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  jet_server:
+    path: ../..
+  shelf: ^1.4.1
+  shelf_router: ^1.1.4
+
+executables:
+  bench: bin/run.dart
