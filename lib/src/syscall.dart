@@ -1,7 +1,7 @@
 import 'dart:ffi' as ffi;
 import 'dart:io' show Platform;
 
-import 'package:ffi/ffi.dart' as pkg_ffi;
+import 'package:ffi/ffi.dart' as ffi show calloc;
 
 import 'constants.dart';
 
@@ -183,7 +183,7 @@ int socketTcp() => _socket(afInet, sockStream | sockNonBlock | sockCloExec, 0);
 int htons(int port) => _htons(port);
 
 int bindAny(int fd, int port) {
-  final addr = pkg_ffi.calloc<SockAddrIn>();
+  final addr = ffi.calloc<SockAddrIn>();
   addr.ref
     ..sinFamily = afInet
     ..sinPort = htons(port)
@@ -192,7 +192,7 @@ int bindAny(int fd, int port) {
     addr.ref.sinZero[i] = 0;
   }
   final rc = _bind(fd, addr, ffi.sizeOf<SockAddrIn>());
-  pkg_ffi.calloc.free(addr);
+  ffi.calloc.free(addr);
   return rc;
 }
 
@@ -206,10 +206,10 @@ int setNonBlocking(int fd) {
 }
 
 int setSockOptInt(int fd, int level, int opt, int value) {
-  final ptr = pkg_ffi.calloc<ffi.Int32>();
+  final ptr = ffi.calloc<ffi.Int32>();
   ptr.value = value;
   final rc = _setsockopt(fd, level, opt, ptr.cast(), ffi.sizeOf<ffi.Int32>());
-  pkg_ffi.calloc.free(ptr);
+  ffi.calloc.free(ptr);
   return rc;
 }
 
@@ -226,11 +226,11 @@ int acceptConn(int serverFd) {
 int epollCreate() => _epollCreate1(0);
 
 int epollAdd(int epfd, int fd, int events) {
-  final ev = pkg_ffi.calloc<EpollEvent>();
+  final ev = ffi.calloc<EpollEvent>();
   ev.ref.events = events;
   ev.ref.data.fd = fd;
   final rc = _epollCtl(epfd, epollCtlAdd, fd, ev);
-  pkg_ffi.calloc.free(ev);
+  ffi.calloc.free(ev);
   return rc;
 }
 
@@ -259,6 +259,6 @@ int sendBuf(
 int errnoValue() => _errno();
 
 ffi.Pointer<EpollEvent> allocEvents(int count) =>
-    pkg_ffi.calloc<EpollEvent>(count);
+    ffi.calloc<EpollEvent>(count);
 
-void freeEvents(ffi.Pointer<EpollEvent> ptr) => pkg_ffi.calloc.free(ptr);
+void freeEvents(ffi.Pointer<EpollEvent> ptr) => ffi.calloc.free(ptr);

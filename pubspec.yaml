@@ -4,7 +4,7 @@ version: 0.1.0
 repository: https://github.com/wdestroier/jet_server
 
 environment:
-  sdk: ^3.10.0
+  sdk: ^3.13.0
 
 dependencies:
   ffi: ^2.1.0

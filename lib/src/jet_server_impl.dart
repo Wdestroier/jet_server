@@ -2,7 +2,7 @@ import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:ffi/ffi.dart' as pkg_ffi;
+import 'package:ffi/ffi.dart' as ffi show calloc;
 
 import 'buffer_pool.dart';
 import 'http_parser.dart';
@@ -79,7 +79,7 @@ final class JetServer {
         continue;
       }
       for (var i = 0; i < n; i++) {
-        final ev = events.elementAt(i).ref;
+        final ev = (events + i).ref;
         final fd = ev.data.fd;
         final mask = ev.events;
         if (fd == serverFd) {
@@ -156,7 +156,7 @@ final class JetServer {
   }
 
   void _send(int fd, Uint8List data) {
-    final ptr = pkg_ffi.calloc<ffi.Uint8>(data.length);
+    final ptr = ffi.calloc<ffi.Uint8>(data.length);
     final view = ptr.asTypedList(data.length);
     view.setAll(0, data);
     final sent = sys.sendBuf(
@@ -165,17 +165,17 @@ final class JetServer {
       data.length,
       flags: msgNoSignal | msgZeroCopy,
     );
-    pkg_ffi.calloc.free(ptr);
+    ffi.calloc.free(ptr);
     if (sent < 0) {
       _closeClient(-1, fd);
     }
   }
 
   void _sendStatic(int fd, Uint8List data) {
-    final ptr = pkg_ffi.calloc<ffi.Uint8>(data.length);
+    final ptr = ffi.calloc<ffi.Uint8>(data.length);
     ptr.asTypedList(data.length).setAll(0, data);
     sys.sendBuf(fd, ptr, data.length, flags: msgNoSignal);
-    pkg_ffi.calloc.free(ptr);
+    ffi.calloc.free(ptr);
   }
 
   void _closeClient(int epfd, int fd) {

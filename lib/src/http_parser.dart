@@ -6,6 +6,7 @@ bool _isSpace(int byte) => byte == 0x20;
 final class Slice {
   final int start;
   final int len;
+  
   const Slice(this.start, this.len);
 }
 

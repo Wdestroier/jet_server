@@ -21,23 +21,24 @@ void main(List<String> args) async {
 }
 
 void _runJet(int port) {
-  final handler = (HttpRequest req) {
-    const body = 'hello from jet';
-    final headers =
-        'HTTP/1.1 200 OK\r\nContent-Length: ${body.length}\r\nConnection: keep-alive\r\nContent-Type: text/plain\r\n\r\n';
-    final out = Uint8List(headers.length + body.length);
-    out.setAll(0, headers.codeUnits);
-    out.setAll(headers.length, body.codeUnits);
-    return out;
-  };
-
   stdout.writeln('Starting jet_server on $port');
-  JetServer(handler: handler, port: port, bufferSize: 16 * 1024).serve();
+  JetServer(handler: _helloJet, port: port, bufferSize: 16 * 1024).serve();
+}
+
+Uint8List _helloJet(HttpRequest req) {
+  const body = 'hello from jet';
+  final headers =
+      'HTTP/1.1 200 OK\r\nContent-Length: ${body.length}\r\nConnection: keep-alive\r\nContent-Type: text/plain\r\n\r\n';
+  return Uint8List(headers.length + body.length)
+    ..setAll(0, headers.codeUnits)
+    ..setAll(headers.length, body.codeUnits);
 }
 
 Future<void> _runShelf(int port) async {
   final router = Router()..get('/', _helloShelf);
-  final handler = Pipeline().addMiddleware(logRequests()).addHandler(router);
+  final handler = Pipeline()
+      .addMiddleware(logRequests())
+      .addHandler(router.call);
   final srv = await shelf_io.serve(handler, InternetAddress.anyIPv4, port);
   stdout.writeln('Starting shelf on ${srv.port}');
 }
