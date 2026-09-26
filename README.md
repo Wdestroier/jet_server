@@ -37,34 +37,4 @@ wsl -d Ubuntu sh -c "wrk -H 'Connection: keep-alive' -c 256 -t 16 -d 30s http://
 
 Benchmark results:
 
-Processor: Intel Core i9 13900H.
-RAM: 16 GB DDR5 5186 MT/s.
-OS: Windows 11 24H2.
-
-```
-wsl -d Ubuntu sh -c "wrk -H 'Connection: keep-alive' -c 256 -t 16 -d 30s http://localhost:3001/"
-Running 30s test @ http://localhost:3001/
-  16 threads and 256 connections
-  Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     7.10us   39.96us  27.56ms   99.86%
-    Req/Sec   130.03k    29.18k  144.38k    95.25%
-  4087784 requests in 30.11s, 401.54MB read
-  Socket errors: connect 0, read 34, write 0, timeout 0
-Requests/sec: 135753.59
-Transfer/sec:     13.33MB
-
-wsl -d Ubuntu sh -c "wrk -H 'Connection: keep-alive' -c 256 -t 16 -d 30s http://localhost:3002/"
-Running 30s test @ http://localhost:3002/
-  16 threads and 256 connections
-  Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency    16.45ms    6.82ms 308.14ms   97.72%
-    Req/Sec     0.99k   140.94     3.74k    90.26%
-  472648 requests in 30.12s, 120.35MB read
-Requests/sec:  15691.98
-Transfer/sec:      4.00MB
-
-```
-
-The same system handles over 8.6x more requests per second.
-
-Data from [The Benchmarker](https://web-frameworks-benchmark.netlify.app) (gathered on 2025-12-14) shows that the fastest framework delivers 10.2x the throughput of [shelf](https://pub.dev/packages/shelf).
+Now available in [The Benchmarker](https://web-frameworks-benchmark.netlify.app).
