@@ -11,8 +11,12 @@ const int solSocket = 1; // SOL_SOCKET
 const int soReuseAddr = 2;
 const int soReusePort = 15;
 const int soKeepAlive = 9;
+const int soRcvBuf = 8;
+const int soSndBuf = 7;
 const int tcpFastOpen = 23; // at TCP level
 const int tcpLevel = 6; // IPPROTO_TCP
+const int tcpNoDelay = 1; // TCP_NODELAY at TCP level
+const int tcpQuickAck = 12; // TCP_QUICKACK at TCP level
 
 // fcntl
 const int fGetFl = 3;
@@ -37,7 +41,9 @@ const int sockNonBlock = 0x800;
 
 // send/recv flags
 const int msgNoSignal = 0x4000;
-const int msgZeroCopy = 0x4000000; // may be ignored depending on kernel/config
+
+// errno relevant values
+const int eAgain = 11;
 
 // misc
 const int inaddrAny = 0x00000000;

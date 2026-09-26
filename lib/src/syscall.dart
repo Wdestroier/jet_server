@@ -58,12 +58,21 @@ final class EpollData extends ffi.Union {
   external int u64;
 }
 
+/// NOTE: Linux's `struct epoll_event` is 12 bytes (packed: u32 events + u64
+/// data with 4-byte alignment). Dart FFI structs use natural alignment and
+/// would lay this out as 16 bytes, which silently corrupts every event after
+/// the first in an `epoll_wait` batch. We therefore NEVER use [EpollEvent]
+/// for the events array: the array is handled as raw bytes with stride 12
+/// (see [epollEventStride], [loadEventMask], [loadEventFd], [storeCtlEvent]).
 final class EpollEvent extends ffi.Struct {
   @ffi.Uint32()
   external int events;
 
   external EpollData data;
 }
+
+/// Kernel stride of `struct epoll_event`.
+const int epollEventStride = 12;
 
 typedef _SocketNative = ffi.Int32 Function(ffi.Int32, ffi.Int32, ffi.Int32);
 typedef _SocketDart = int Function(int, int, int);
@@ -128,18 +137,18 @@ typedef _EpollCtlNative =
       ffi.Int32,
       ffi.Int32,
       ffi.Int32,
-      ffi.Pointer<EpollEvent>,
+      ffi.Pointer<ffi.Void>,
     );
-typedef _EpollCtlDart = int Function(int, int, int, ffi.Pointer<EpollEvent>);
+typedef _EpollCtlDart = int Function(int, int, int, ffi.Pointer<ffi.Void>);
 
 typedef _EpollWaitNative =
     ffi.Int32 Function(
       ffi.Int32,
-      ffi.Pointer<EpollEvent>,
+      ffi.Pointer<ffi.Void>,
       ffi.Int32,
       ffi.Int32,
     );
-typedef _EpollWaitDart = int Function(int, ffi.Pointer<EpollEvent>, int, int);
+typedef _EpollWaitDart = int Function(int, ffi.Pointer<ffi.Void>, int, int);
 
 typedef _HtonsNative = ffi.Uint16 Function(ffi.Uint16);
 typedef _HtonsDart = int Function(int);
@@ -213,6 +222,19 @@ int setSockOptInt(int fd, int level, int opt, int value) {
   return rc;
 }
 
+/// Fast variant reusing a caller-provided Int32 cell (avoids malloc per call).
+@pragma('vm:always-consider-inlining')
+int setSockOptIntFast(
+  int fd,
+  int level,
+  int opt,
+  int value,
+  ffi.Pointer<ffi.Int32> cell,
+) {
+  cell.value = value;
+  return _setsockopt(fd, level, opt, cell.cast(), ffi.sizeOf<ffi.Int32>());
+}
+
 int acceptConn(int serverFd) {
   return _accept4(
     serverFd,
@@ -225,12 +247,43 @@ int acceptConn(int serverFd) {
 @pragma('vm:always-consider-inlining')
 int epollCreate() => _epollCreate1(0);
 
+/// 12-byte kernel-layout scratch reuse: caller passes a preallocated buffer
+/// of at least [epollEventStride] bytes.
+@pragma('vm:always-consider-inlining')
+int epollAddReuse(
+  int epfd,
+  int fd,
+  int events,
+  ffi.Pointer<ffi.Uint8> scratch,
+) {
+  storeCtlEvent(scratch, events, fd);
+  return _epollCtl(epfd, epollCtlAdd, fd, scratch.cast());
+}
+
+@pragma('vm:always-consider-inlining')
+int epollModReuse(
+  int epfd,
+  int fd,
+  int events,
+  ffi.Pointer<ffi.Uint8> scratch,
+) {
+  storeCtlEvent(scratch, events, fd);
+  return _epollCtl(epfd, epollCtlMod, fd, scratch.cast());
+}
+
 int epollAdd(int epfd, int fd, int events) {
-  final ev = ffi.calloc<EpollEvent>();
-  ev.ref.events = events;
-  ev.ref.data.fd = fd;
-  final rc = _epollCtl(epfd, epollCtlAdd, fd, ev);
-  ffi.calloc.free(ev);
+  final scratch = ffi.calloc<ffi.Uint8>(epollEventStride);
+  storeCtlEvent(scratch, events, fd);
+  final rc = _epollCtl(epfd, epollCtlAdd, fd, scratch.cast());
+  ffi.calloc.free(scratch);
+  return rc;
+}
+
+int epollMod(int epfd, int fd, int events) {
+  final scratch = ffi.calloc<ffi.Uint8>(epollEventStride);
+  storeCtlEvent(scratch, events, fd);
+  final rc = _epollCtl(epfd, epollCtlMod, fd, scratch.cast());
+  ffi.calloc.free(scratch);
   return rc;
 }
 
@@ -239,13 +292,32 @@ int epollDel(int epfd, int fd) =>
 
 int epollWait(
   int epfd,
-  ffi.Pointer<EpollEvent> events,
+  ffi.Pointer<ffi.Uint8> events,
   int maxEvents,
   int timeoutMs,
 ) {
-  return _epollWait(epfd, events, maxEvents, timeoutMs);
+  return _epollWait(epfd, events.cast(), maxEvents, timeoutMs);
 }
 
+/// Writes a kernel-layout control event (events u32 @0, fd i32 @4, zero @8).
+@pragma('vm:always-consider-inlining')
+void storeCtlEvent(ffi.Pointer<ffi.Uint8> scratch, int events, int fd) {
+  scratch.cast<ffi.Uint32>().value = events;
+  (scratch + 4).cast<ffi.Int32>().value = fd;
+  (scratch + 8).cast<ffi.Uint32>().value = 0;
+}
+
+/// Reads the events mask of batch entry [i] (kernel 12-byte stride).
+@pragma('vm:always-consider-inlining')
+int loadEventMask(ffi.Pointer<ffi.Uint8> base, int i) =>
+    (base + i * epollEventStride).cast<ffi.Uint32>().value;
+
+/// Reads the fd of batch entry [i] (kernel 12-byte stride).
+@pragma('vm:always-consider-inlining')
+int loadEventFd(ffi.Pointer<ffi.Uint8> base, int i) =>
+    (base + 4 + i * epollEventStride).cast<ffi.Int32>().value;
+
+@pragma('vm:always-consider-inlining')
 int recvInto(int fd, ffi.Pointer<ffi.Uint8> buf, int len) =>
     _recv(fd, buf.cast(), len, 0);
 
@@ -256,9 +328,19 @@ int sendBuf(
   int flags = msgNoSignal,
 }) => _send(fd, buf.cast(), len, flags);
 
+/// Send from [offset] within the native buffer.
+@pragma('vm:always-consider-inlining')
+int sendBufAt(
+  int fd,
+  ffi.Pointer<ffi.Uint8> base,
+  int offset,
+  int len, {
+  int flags = msgNoSignal,
+}) => _send(fd, (base + offset).cast(), len, flags);
+
 int errnoValue() => _errno();
 
-ffi.Pointer<EpollEvent> allocEvents(int count) =>
-    ffi.calloc<EpollEvent>(count);
+ffi.Pointer<ffi.Uint8> allocEvents(int count) =>
+    ffi.calloc<ffi.Uint8>(count * epollEventStride);
 
-void freeEvents(ffi.Pointer<EpollEvent> ptr) => ffi.calloc.free(ptr);
+void freeEvents(ffi.Pointer<ffi.Uint8> ptr) => ffi.calloc.free(ptr);

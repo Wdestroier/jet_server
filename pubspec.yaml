@@ -1,6 +1,6 @@
 name: jet_server
 description: An HTTP server optimized for production servers.
-version: 0.1.0
+version: 0.2.0
 repository: https://github.com/wdestroier/jet_server
 
 environment:
